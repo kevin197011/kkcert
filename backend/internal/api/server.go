@@ -522,6 +522,10 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request, id string) {
 		http.Error(w, err.Error(), 404)
 		return
 	}
+	if u.Username == "admin" {
+		http.Error(w, "bootstrap admin account cannot be modified", http.StatusForbidden)
+		return
+	}
 	var req struct {
 		Email    string `json:"email"`
 		Role     string `json:"role"`
@@ -531,6 +535,22 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request, id string) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
+	}
+	if u.Role == store.RoleAdmin {
+		if req.Role != "" && req.Role != store.RoleAdmin {
+			n, _ := s.store.CountAdmins()
+			if n <= 1 {
+				http.Error(w, "cannot demote last admin", 400)
+				return
+			}
+		}
+		if req.Enabled != nil && !*req.Enabled {
+			n, _ := s.store.CountAdmins()
+			if n <= 1 {
+				http.Error(w, "cannot disable last admin", 400)
+				return
+			}
+		}
 	}
 	if req.Email != "" {
 		u.Email = req.Email
@@ -560,6 +580,10 @@ func (s *Server) deleteUser(w http.ResponseWriter, id string) {
 	u, err := s.store.GetUser(id)
 	if err != nil {
 		http.Error(w, err.Error(), 404)
+		return
+	}
+	if u.Username == "admin" {
+		http.Error(w, "cannot delete bootstrap admin account", http.StatusBadRequest)
 		return
 	}
 	if u.Role == store.RoleAdmin {

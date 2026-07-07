@@ -30,6 +30,7 @@ export interface User {
   email: string
   role: 'admin' | 'operator' | 'viewer'
   auth_type: string
+  enabled?: boolean
 }
 
 export interface Domain {
@@ -144,4 +145,8 @@ export function canWriteSettings(role: string) {
 
 export function canManageUsers(role: string) {
   return role === 'admin'
+}
+
+export function canEditUser(_actorRole: string, target: User) {
+  return target.username !== 'admin'
 }

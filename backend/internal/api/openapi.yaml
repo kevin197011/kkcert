@@ -550,6 +550,7 @@ paths:
     get:
       tags: [users]
       summary: 用户列表
+      description: 仅 admin
       operationId: listUsers
       security: [{ BearerAuth: [] }]
       responses:
@@ -563,6 +564,7 @@ paths:
     post:
       tags: [users]
       summary: 创建用户
+      description: 仅 admin
       operationId: createUser
       security: [{ BearerAuth: [] }]
       requestBody:
@@ -587,6 +589,7 @@ paths:
     put:
       tags: [users]
       summary: 更新用户
+      description: 仅 admin；不可修改 username 为 admin 的引导账号
       operationId: updateUser
       security: [{ BearerAuth: [] }]
       parameters:

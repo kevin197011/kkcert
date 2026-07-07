@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { api, Domain, canWriteDomain } from '../api'
+import { api, Certificate, Domain, canWriteDomain } from '../api'
 import { useAuth } from '../auth'
 import { PageHeader } from '../components/PageHeader'
 import { Sheet } from '../components/Sheet'
+import { TablePagination } from '../components/TablePagination'
+import { usePagination } from '../hooks/usePagination'
 
 type RenewStatus = { domain: string; text: string; kind: 'info' | 'ok' | 'err' }
 
@@ -10,19 +12,36 @@ function sleep(ms: number) {
   return new Promise(r => setTimeout(r, ms))
 }
 
+function statusLabel(s: string) {
+  switch (s) {
+    case 'ok': return '正常'
+    case 'warning': return '即将过期'
+    case 'expired': return '已过期'
+    default: return s
+  }
+}
+
 export default function Domains() {
   const { user } = useAuth()
   const writable = user && canWriteDomain(user.role)
   const [domains, setDomains] = useState<Domain[]>([])
+  const [certByDomainId, setCertByDomainId] = useState<Map<string, Certificate>>(new Map())
   const [input, setInput] = useState('')
   const [wildcard, setWildcard] = useState(true)
   const [loading, setLoading] = useState(true)
   const [renewing, setRenewing] = useState<string | null>(null)
   const [status, setStatus] = useState<RenewStatus | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [gitNotice, setGitNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
   function load() {
-    api.listDomains().then(setDomains).finally(() => setLoading(false))
+    Promise.all([api.listDomains(), api.listCertificates()])
+      .then(([domainList, certs]) => {
+        setDomains(domainList)
+        setCertByDomainId(new Map(certs.map(c => [c.domain_id, c])))
+      })
+      .finally(() => setLoading(false))
   }
 
   useEffect(load, [])
@@ -37,7 +56,7 @@ export default function Domains() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('确认删除该域名？')) return
+    if (!confirm('确认删除该域名？关联证书将一并清除。')) return
     await api.deleteDomain(id)
     load()
   }
@@ -65,6 +84,7 @@ export default function Domains() {
         }
         if (hit.level === 'info' && hit.message !== 'started') {
           setStatus({ domain: d.domain, text: `申请成功：${hit.message}`, kind: 'ok' })
+          load()
           return
         }
       }
@@ -76,13 +96,39 @@ export default function Domains() {
     }
   }
 
+  async function handleSyncAllGit() {
+    setSyncing(true)
+    setGitNotice(null)
+    try {
+      const res = await api.syncAllCertsGit()
+      setGitNotice({ kind: 'ok', text: `已将 ${res.count} 个域名证书同步到 Git 仓库` })
+    } catch (e) {
+      setGitNotice({ kind: 'err', text: (e as Error).message })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const certCount = certByDomainId.size
+  const pagination = usePagination(domains, 'domains')
+
   if (loading) return <p className="loading">加载中...</p>
 
   return (
     <div>
-      <PageHeader title="域名管理" subtitle={`共 ${domains.length} 个根域名`}>
+      <PageHeader title="域名与证书" subtitle={`${domains.length} 个域名 · ${certCount} 张有效证书`}>
         {writable && (
-          <button type="button" className="btn" onClick={() => setSheetOpen(true)}>添加域名</button>
+          <>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={syncing || certCount === 0}
+              onClick={handleSyncAllGit}
+            >
+              {syncing ? '同步中...' : '一键同步 Git'}
+            </button>
+            <button type="button" className="btn" onClick={() => setSheetOpen(true)}>添加域名</button>
+          </>
         )}
       </PageHeader>
 
@@ -90,6 +136,13 @@ export default function Domains() {
         <div className={`notice notice-${status.kind}`}>
           <strong>{status.domain}</strong> — {status.text}
           <button type="button" className="notice-close" onClick={() => setStatus(null)}>×</button>
+        </div>
+      )}
+
+      {gitNotice && (
+        <div className={`notice notice-${gitNotice.kind}`}>
+          {gitNotice.text}
+          <button type="button" className="notice-close" onClick={() => setGitNotice(null)}>×</button>
         </div>
       )}
 
@@ -106,34 +159,59 @@ export default function Domains() {
                 <tr>
                   <th>域名</th>
                   <th>通配符</th>
-                  <th>状态</th>
-                  <th>添加时间</th>
+                  <th>检测</th>
+                  <th>证书状态</th>
+                  <th>过期时间</th>
+                  <th>剩余天数</th>
                   {writable && <th>操作</th>}
                 </tr>
               </thead>
               <tbody>
-                {domains.map(d => (
-                  <tr key={d.id}>
-                    <td className="cell-domain">{d.domain}</td>
-                    <td>{d.wildcard ? '是' : '否'}</td>
-                    <td>{d.enabled ? '启用' : '禁用'}</td>
-                    <td>{new Date(d.created_at).toLocaleString('zh-CN')}</td>
-                    {writable && (
-                    <td className="actions">
-                      <button
-                        className="btn btn-sm"
-                        disabled={renewing === d.id}
-                        onClick={() => handleRenew(d)}
-                      >
-                        {renewing === d.id ? '申请中...' : '申请/续签'}
-                      </button>
-                      <button className="btn btn-sm btn-danger" disabled={!!renewing} onClick={() => handleDelete(d.id)}>删除</button>
-                    </td>
-                    )}
-                  </tr>
-                ))}
+                {pagination.pageItems.map(d => {
+                  const cert = certByDomainId.get(d.id)
+                  return (
+                    <tr key={d.id}>
+                      <td className="cell-domain">{d.domain}</td>
+                      <td>{d.wildcard ? '是' : '否'}</td>
+                      <td>{d.enabled ? '启用' : '禁用'}</td>
+                      <td>
+                        {cert
+                          ? <span className={`badge ${cert.status}`}>{statusLabel(cert.status)}</span>
+                          : <span className="text-muted">未签发</span>}
+                      </td>
+                      <td>{cert ? new Date(cert.expires_at).toLocaleDateString('zh-CN') : '—'}</td>
+                      <td>
+                        {cert
+                          ? <span className={`days-left days-${cert.status}`}>{cert.days_left} 天</span>
+                          : '—'}
+                      </td>
+                      {writable && (
+                        <td className="actions">
+                          <button
+                            className="btn btn-sm"
+                            disabled={renewing === d.id}
+                            onClick={() => handleRenew(d)}
+                          >
+                            {renewing === d.id ? '申请中...' : '申请/续签'}
+                          </button>
+                          <button className="btn btn-sm btn-danger" disabled={!!renewing} onClick={() => handleDelete(d.id)}>删除</button>
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
+            <TablePagination
+              page={pagination.page}
+              pageSize={pagination.pageSize}
+              total={pagination.total}
+              totalPages={pagination.totalPages}
+              pageSizes={pagination.pageSizes}
+              show={pagination.showPagination}
+              onPageChange={pagination.setPage}
+              onPageSizeChange={pagination.setPageSize}
+            />
           </div>
         )}
       </div>

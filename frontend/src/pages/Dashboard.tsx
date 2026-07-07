@@ -93,7 +93,7 @@ export default function Dashboard() {
             </table>
           )}
         </div>
-        <Link to="/certificates" className="page-link">查看全部证书 →</Link>
+        <Link to="/domains" className="page-link">查看全部域名与证书 →</Link>
       </div>
     </div>
   )

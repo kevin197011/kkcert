@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { api, APIToken } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { Sheet } from '../components/Sheet'
+import { TablePagination } from '../components/TablePagination'
+import { usePagination } from '../hooks/usePagination'
 
 export default function Tokens() {
   const [tokens, setTokens] = useState<APIToken[]>([])
@@ -9,6 +11,7 @@ export default function Tokens() {
   const [created, setCreated] = useState('')
   const [loading, setLoading] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const pagination = usePagination(tokens, 'tokens')
 
   function load() {
     api.listTokens().then(setTokens).finally(() => setLoading(false))
@@ -66,7 +69,7 @@ export default function Tokens() {
             <tbody>
               {tokens.length === 0 ? (
                 <tr><td colSpan={6} className="empty">暂无 Token，点击右上角创建</td></tr>
-              ) : tokens.map(t => (
+              ) : pagination.pageItems.map(t => (
                 <tr key={t.id}>
                   <td className="cell-domain">{t.name}</td>
                   <td><code>{t.prefix}</code></td>
@@ -80,6 +83,16 @@ export default function Tokens() {
               ))}
             </tbody>
           </table>
+          <TablePagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            pageSizes={pagination.pageSizes}
+            show={pagination.showPagination}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+          />
         </div>
       </div>
 

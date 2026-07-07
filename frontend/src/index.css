@@ -199,10 +199,22 @@ code {
   flex: 1;
   position: relative;
   z-index: 1;
+  min-height: 0;
+}
+
+.sidebar-nav-bottom {
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, #fff 8%, transparent);
 }
 
 .nav-section {
-  margin-bottom: 22px;
+  margin-bottom: 18px;
+}
+
+.nav-section:last-child {
+  margin-bottom: 0;
 }
 
 .nav-section-label {
@@ -562,6 +574,85 @@ h3 {
 
 .table-wrap { overflow-x: auto; }
 
+.table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.table-pagination-info {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.table-pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-pagination-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.table-pagination-size select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.table-pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.table-pagination-page {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.table-pagination-page:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.table-pagination-page.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+}
+
+.table-pagination-ellipsis {
+  padding: 0 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -901,6 +992,11 @@ tbody tr:last-child td { border-bottom: none; }
   text-align: center;
   padding: 56px 20px;
   font-size: 14px;
+}
+
+.text-muted {
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .loading {
@@ -1434,23 +1530,37 @@ tbody tr:last-child td { border-bottom: none; }
     border-bottom: 1px solid var(--sidebar-border);
     padding: 16px;
   }
-  .sidebar-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+  .sidebar-nav,
+  .sidebar-nav-bottom {
+    display: block;
+    width: 100%;
+  }
+  .sidebar-nav-bottom {
+    margin-top: 12px;
+    padding-top: 12px;
   }
   .nav-section {
-    display: contents;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 6px;
+    margin-bottom: 12px;
   }
-  .nav-section-label { display: none; }
+  .nav-section-label {
+    grid-column: 1 / -1;
+    padding: 0 4px 2px;
+    font-size: 9px;
+  }
   .nav-item {
-    padding: 8px 12px;
+    padding: 8px 10px;
     font-size: 13px;
+    margin-bottom: 0;
   }
   .stats { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .main { padding: 20px 16px 32px; }
   .page-footer { padding: 12px 16px 16px; }
+  .table-pagination { flex-direction: column; align-items: stretch; }
+  .table-pagination-controls { justify-content: center; }
   .topbar { padding: 10px 16px; }
   .user-menu-name { display: none; }
   .page-header { flex-direction: column; align-items: stretch; }
