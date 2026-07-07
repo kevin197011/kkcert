@@ -1,0 +1,4 @@
+data/
+bin/
+node_modules/
+backend/cmd/kkcert/dist/

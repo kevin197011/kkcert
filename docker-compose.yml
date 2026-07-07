@@ -1,0 +1,12 @@
+services:
+  kkcert:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      KKCERT_DATA_DIR: /data
+      KKCERT_LISTEN: ":8080"
+      KKCERT_BOOTSTRAP_PASSWORD: ${KKCERT_BOOTSTRAP_PASSWORD:-changeme}
+    restart: unless-stopped

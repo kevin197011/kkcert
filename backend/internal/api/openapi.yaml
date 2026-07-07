@@ -1,0 +1,668 @@
+openapi: 3.0.3
+info:
+  title: KKCert API
+  description: |
+    KKCert 证书运维平台 REST API，供 Web 后台与 AI Agent 自动化接入。
+
+    ## 认证
+
+    所有受保护接口需在 Header 携带：
+
+    ```
+    Authorization: Bearer <token>
+    ```
+
+    **Token 类型：**
+
+    | 类型 | 获取方式 | 有效期 | 权限 |
+    |------|----------|--------|------|
+    | Session Token | `POST /api/auth/login` | 24h | 用户角色 |
+    | API Token | `POST /api/tokens`（仅 admin） | 可配置 / 永久 | 创建时指定 |
+    | Legacy API Token | 系统设置 `api_token` | 永久 | admin |
+
+    **AI Agent 推荐流程：**
+    1. 管理员创建 API Token（`operator` 或 `admin` 角色）
+    2. 保存返回的 `token` 字段（仅显示一次）
+    3. 后续请求携带 `Authorization: Bearer kkcert_xxx...`
+
+    在线文档：`GET /api/docs`
+  version: 1.4.0
+  contact:
+    name: KKCert
+
+servers:
+  - url: http://localhost:8080
+    description: 本地开发
+
+tags:
+  - name: health
+    description: 健康检查
+  - name: auth
+    description: 认证与会话
+  - name: tokens
+    description: API Token 管理（Agent 接入）
+  - name: domains
+    description: 域名管理
+  - name: certificates
+    description: 证书
+  - name: settings
+    description: 系统设置
+  - name: users
+    description: 用户管理
+  - name: logs
+    description: 操作日志
+  - name: tasks
+    description: 后台任务
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: token
+      description: Session Token 或 API Token（kkcert_ 前缀）
+
+  schemas:
+    Error:
+      type: string
+      example: unauthorized
+
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Session Token
+
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        username: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [admin, operator, viewer] }
+        auth_type: { type: string }
+        enabled: { type: boolean }
+
+    APIToken:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        prefix: { type: string, example: "kkcert_a1b2c3d4..." }
+        role: { type: string, enum: [admin, operator, viewer] }
+        enabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time, nullable: true }
+        last_used_at: { type: string, format: date-time, nullable: true }
+
+    CreateTokenRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Token 名称（如 agent-ci、cursor-bot）
+        role:
+          type: string
+          enum: [admin, operator, viewer]
+          default: operator
+        expires_days:
+          type: integer
+          description: 有效天数，0 或不填为永久
+          example: 90
+
+    CreateTokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIToken'
+        - type: object
+          properties:
+            token:
+              type: string
+              description: 完整 Token，仅创建时返回一次
+
+    Domain:
+      type: object
+      properties:
+        id: { type: string }
+        domain: { type: string, example: example.com }
+        wildcard: { type: boolean }
+        enabled: { type: boolean }
+        archived: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    CreateDomainsRequest:
+      type: object
+      properties:
+        domains:
+          type: string
+          description: 多行或逗号分隔的根域名
+        wildcard:
+          type: boolean
+          default: true
+
+    Certificate:
+      type: object
+      properties:
+        id: { type: string }
+        domain_id: { type: string }
+        domain: { type: string }
+        expires_at: { type: string, format: date-time }
+        issued_at: { type: string, format: date-time }
+        days_left: { type: integer }
+        status: { type: string, enum: [ok, warning, expired] }
+        active: { type: boolean }
+
+    Settings:
+      type: object
+      properties:
+        acme_email: { type: string }
+        acme_staging: { type: boolean }
+        godaddy_api_key: { type: string }
+        godaddy_api_secret: { type: string }
+        git_repo_url: { type: string }
+        git_branch: { type: string }
+        git_auth_type: { type: string, enum: [ssh, token] }
+        git_ssh_key_path: { type: string }
+        git_token: { type: string }
+        git_certs_dir: { type: string }
+        renew_before_days: { type: integer }
+        auto_renew_enabled: { type: boolean }
+        check_cron: { type: string }
+        cleanup_cron: { type: string }
+        api_token: { type: string }
+        oidc_enabled: { type: boolean }
+        oidc_issuer: { type: string }
+        oidc_client_id: { type: string }
+        oidc_client_secret: { type: string }
+        oidc_redirect_url: { type: string }
+        oidc_default_role: { type: string }
+
+    OpLog:
+      type: object
+      properties:
+        id: { type: string }
+        level: { type: string, enum: [info, error] }
+        action: { type: string }
+        message: { type: string }
+        domain: { type: string }
+        created_at: { type: string, format: date-time }
+
+    TaskStarted:
+      type: object
+      properties:
+        status: { type: string, example: started }
+        domain: { type: string }
+
+    StatusOK:
+      type: object
+      properties:
+        status: { type: string, example: ok }
+
+paths:
+  /api/health:
+    get:
+      tags: [health]
+      summary: 健康检查
+      operationId: health
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /api/openapi.yaml:
+    get:
+      tags: [health]
+      summary: OpenAPI 规范文件
+      operationId: openAPI
+      responses:
+        '200':
+          description: YAML spec
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+  /api/docs:
+    get:
+      tags: [health]
+      summary: Swagger UI 文档页
+      operationId: swaggerUI
+      responses:
+        '200':
+          description: HTML
+
+  /api/auth/config:
+    get:
+      tags: [auth]
+      summary: 公开认证配置
+      operationId: authConfig
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  oidc_enabled: { type: boolean }
+
+  /api/auth/login:
+    post:
+      tags: [auth]
+      summary: 本地账号登录
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: 凭据错误
+
+  /api/auth/me:
+    get:
+      tags: [auth]
+      summary: 当前用户
+      operationId: me
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: 未认证
+
+  /api/auth/logout:
+    post:
+      tags: [auth]
+      summary: 登出（销毁 Session）
+      operationId: logout
+      security: [{ BearerAuth: [] }]
+      responses:
+        '204':
+          description: 已登出
+
+  /api/tokens:
+    get:
+      tags: [tokens]
+      summary: 列出 API Token
+      operationId: listTokens
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/APIToken'
+        '403':
+          description: 仅 admin
+    post:
+      tags: [tokens]
+      summary: 创建 API Token（Agent 接入）
+      description: 返回的 token 字段仅显示一次，请立即保存
+      operationId: createToken
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTokenResponse'
+        '403':
+          description: 仅 admin
+
+  /api/tokens/{id}:
+    put:
+      tags: [tokens]
+      summary: 更新 Token（启用/禁用、角色）
+      operationId: updateToken
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled: { type: boolean }
+                role: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIToken'
+    delete:
+      tags: [tokens]
+      summary: 吊销 Token
+      operationId: deleteToken
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: 已删除
+
+  /api/domains:
+    get:
+      tags: [domains]
+      summary: 域名列表
+      operationId: listDomains
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Domain'
+    post:
+      tags: [domains]
+      summary: 批量添加域名
+      operationId: createDomains
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDomainsRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Domain'
+        '403':
+          description: 需要 admin/operator
+
+  /api/domains/{id}:
+    delete:
+      tags: [domains]
+      summary: 删除（归档）域名
+      operationId: deleteDomain
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: 已删除
+
+  /api/domains/{id}/renew:
+    post:
+      tags: [domains]
+      summary: 申请/续签证书
+      description: 异步执行，通过操作日志查看结果
+      operationId: renewDomain
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStarted'
+        '400':
+          description: 未配置 ACME/GoDaddy
+
+  /api/certificates:
+    get:
+      tags: [certificates]
+      summary: 有效证书列表
+      operationId: listCertificates
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Certificate'
+
+  /api/certificates/sync-git:
+    post:
+      tags: [certificates]
+      summary: 一键将全部有效证书 push 到 Git
+      operationId: syncAllCertsGit
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  count:
+                    type: integer
+        '400':
+          description: 未配置 Git 仓库或无有效证书
+        '403':
+          description: 权限不足
+        '500':
+          description: push 失败
+
+  /api/settings:
+    get:
+      tags: [settings]
+      summary: 读取设置（密钥脱敏）
+      operationId: getSettings
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+    put:
+      tags: [settings]
+      summary: 更新设置
+      operationId: putSettings
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Settings'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusOK'
+        '403':
+          description: 仅 admin
+
+  /api/settings/acme/reset:
+    post:
+      tags: [settings]
+      summary: 重置 ACME 账户
+      operationId: resetACME
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                staging: { type: boolean, nullable: true }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusOK'
+
+  /api/users:
+    get:
+      tags: [users]
+      summary: 用户列表
+      operationId: listUsers
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      tags: [users]
+      summary: 创建用户
+      operationId: createUser
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                email: { type: string }
+                password: { type: string }
+                role: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /api/users/{id}:
+    put:
+      tags: [users]
+      summary: 更新用户
+      operationId: updateUser
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+                role: { type: string }
+                enabled: { type: boolean }
+                password: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    delete:
+      tags: [users]
+      summary: 删除用户
+      operationId: deleteUser
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: 已删除
+
+  /api/logs:
+    get:
+      tags: [logs]
+      summary: 操作日志（最近 50 条）
+      operationId: listLogs
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpLog'
+
+  /api/check/run:
+    post:
+      tags: [tasks]
+      summary: 手动触发证书检测
+      operationId: runCheck
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStarted'
+
+  /api/cleanup/run:
+    post:
+      tags: [tasks]
+      summary: 手动触发数据清理
+      operationId: runCleanup
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStarted'
