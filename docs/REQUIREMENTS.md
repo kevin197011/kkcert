@@ -263,7 +263,6 @@ v1.4 增加完整 OpenAPI 文档与 API Token 管理机制，便于 AI Agent 与
 | OIDC SSO | Authorization Code Flow，首次登录自动建用户 |
 | Session Token | 登录后 24h 有效，等同用户角色 |
 | API Token | 管理员创建，可指定角色与有效期（见 4.9） |
-| Legacy API Token | 系统设置 `api_token` 字段，等同 `admin`（兼容旧版） |
 
 #### 角色与权限
 
@@ -380,17 +379,6 @@ curl http://localhost:8080/api/certificates \
   -H "Authorization: Bearer kkcert_..."
 ```
 
-**与 Legacy `api_token` 的区别：**
-
-| 项 | API Token（新） | Settings `api_token`（旧） |
-|----|---------------|---------------------------|
-| 管理 | Web / API 独立管理 | 写在系统设置中 |
-| 权限 | 可指定角色 | 固定 admin |
-| 吊销 | 即时吊销单条 | 需改设置 |
-| 审计 | 有名称、最后使用时间 | 无 |
-
-建议新接入统一使用 API Token；`api_token` 保留兼容。
-
 ### 4.10 主题与界面（F-11）
 
 #### 主题模式
@@ -416,12 +404,31 @@ curl http://localhost:8080/api/certificates \
 - 布局：深色渐变侧栏 + 浅色/深色主内容区，径向光晕背景
 - 侧栏：分组导航（监控 / 管理）+ SVG 图标
 - 顶栏：主内容区右上角用户头像下拉（用户名、角色、主题、退出）
+- 页脚：所有页面（含登录页）底部统一展示「系统运维驱动」（`PageFooter` 组件）
 - 统计卡片：图标 + 数值 + 状态色光晕
 - 登录页：双栏布局（品牌介绍 + 表单），移动端折叠为单栏
-- 动态背景：登录页与后台主内容区使用轻量 CSS 动画（浮动光晕、点阵漂移、光束旋转）；侧栏光晕呼吸动效
+- 动态背景：登录页与后台主内容区使用**运维拓扑风格**轻量动画（正交网格、链路脉冲、节点状态闪烁）；侧栏光晕仅透明度呼吸，无位移
+- 登录页 Logo 图标**静态**展示，不做浮动动画
 - 无障碍：`prefers-reduced-motion` 时关闭全部背景动画
 - 卡片圆角 16px，表格行 hover，表单 focus 环，按钮渐变；卡片半透明毛玻璃
 - 响应式：≤768px 侧栏折叠为顶部横向导航
+
+#### 页面布局原则
+
+各页面**禁止**将「创建表单 + 数据列表 + 多块配置」纵向堆叠在同一屏；主内容区以列表/概览为主，次要操作通过侧滑面板（`Sheet`）或标签页（`Tabs`）承载。
+
+| 页面 | 主内容 | 次要操作 |
+|------|--------|----------|
+| 概览 | 统计卡片 + **需关注**证书（warning/expired） | 「立即检测」；完整列表跳转证书列表 |
+| 域名管理 | 域名表格 | 「添加域名」→ 侧滑面板 |
+| 证书列表 | 证书表格 | 「一键同步 Git」在页头 |
+| 操作日志 | 日志表格 | — |
+| 系统设置 | **标签页**切换单模块配置（ACME / SSO / GoDaddy / Git / 续签） | 每页底部统一「保存设置」 |
+| 用户管理 | 用户表格 | 「新建用户」→ 侧滑面板 |
+| API Token | Token 表格 | 「创建 Token」→ 侧滑面板 |
+
+- 侧滑面板：`frontend/src/components/Sheet.tsx`，Esc / 遮罩关闭
+- 设置标签：`frontend/src/components/Tabs.tsx`
 
 #### 域名续签状态条
 
@@ -461,7 +468,6 @@ curl http://localhost:8080/api/certificates \
 | `renew_before_days` | 否 | 默认 30 |
 | `check_cron` | 否 | 默认 `0 3 * * *` |
 | `cleanup_cron` | 否 | 默认 `0 4 * * *` |
-| `api_token` | 否 | 旧版机器调用 Token（建议改用 F-13） |
 | OIDC 相关 | 条件 | 见 4.7 |
 
 - **权限**：读取 `admin` / `operator` / `viewer`；写入仅 `admin`

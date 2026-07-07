@@ -41,14 +41,7 @@ func CreateAPIToken(st *store.Store, name, role string, expiresDays int) (raw st
 }
 
 func authenticateAPIToken(st *store.Store, token string) (*Principal, bool) {
-	if token == "" {
-		return nil, false
-	}
-	settings, _ := st.GetSettings()
-	if settings.APIToken != "" && token == settings.APIToken {
-		return &Principal{User: store.User{ID: "legacy-api", Username: "api-legacy", Role: store.RoleAdmin, Enabled: true}}, true
-	}
-	if !strings.HasPrefix(token, "kkcert_") {
+	if token == "" || !strings.HasPrefix(token, "kkcert_") {
 		return nil, false
 	}
 	hash := store.HashAPIToken(token)

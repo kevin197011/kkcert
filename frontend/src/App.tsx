@@ -3,6 +3,7 @@ import { useAuth } from './auth'
 import { canManageUsers, canWriteDomain, canWriteSettings } from './api'
 import { UserMenu } from './components/UserMenu'
 import { AnimatedBackground } from './components/AnimatedBackground'
+import { PageFooter } from './components/PageFooter'
 import {
   IconDashboard, IconGlobe, IconCertificate, IconSettings,
   IconUsers, IconKey, IconLogs,
@@ -91,6 +92,7 @@ function Layout() {
             <Route path="/logs" element={<Logs />} />
           </Routes>
         </main>
+        <PageFooter />
       </div>
     </div>
   )

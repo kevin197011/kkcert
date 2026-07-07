@@ -5,6 +5,7 @@ import { useAuth } from '../auth'
 import { ThemeToggle } from '../theme'
 import { Logo } from '../Logo'
 import { AnimatedBackground } from '../components/AnimatedBackground'
+import { PageFooter } from '../components/PageFooter'
 
 export default function Login() {
   const [username, setUsername] = useState('')
@@ -83,6 +84,8 @@ export default function Login() {
           )}
         </div>
       </div>
+
+      <PageFooter />
     </div>
   )
 }

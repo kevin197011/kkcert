@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, Domain, canWriteDomain } from '../api'
 import { useAuth } from '../auth'
 import { PageHeader } from '../components/PageHeader'
+import { Sheet } from '../components/Sheet'
 
 type RenewStatus = { domain: string; text: string; kind: 'info' | 'ok' | 'err' }
 
@@ -18,6 +19,7 @@ export default function Domains() {
   const [loading, setLoading] = useState(true)
   const [renewing, setRenewing] = useState<string | null>(null)
   const [status, setStatus] = useState<RenewStatus | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   function load() {
     api.listDomains().then(setDomains).finally(() => setLoading(false))
@@ -30,6 +32,7 @@ export default function Domains() {
     if (!input.trim()) return
     await api.createDomains(input, wildcard)
     setInput('')
+    setSheetOpen(false)
     load()
   }
 
@@ -77,7 +80,11 @@ export default function Domains() {
 
   return (
     <div>
-      <PageHeader title="域名管理" subtitle="批量添加根域名，触发 Let's Encrypt 申请与续签" />
+      <PageHeader title="域名管理" subtitle={`共 ${domains.length} 个根域名`}>
+        {writable && (
+          <button type="button" className="btn" onClick={() => setSheetOpen(true)}>添加域名</button>
+        )}
+      </PageHeader>
 
       {status && (
         <div className={`notice notice-${status.kind}`}>
@@ -86,15 +93,65 @@ export default function Domains() {
         </div>
       )}
 
-      {writable && (
-      <div className="card">
+      <div className="card card-elevated">
+        {domains.length === 0 ? (
+          <div className="attention-empty">
+            <strong>暂无域名</strong>
+            {writable ? '点击右上角「添加域名」开始管理证书' : '请联系运维添加域名'}
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>域名</th>
+                  <th>通配符</th>
+                  <th>状态</th>
+                  <th>添加时间</th>
+                  {writable && <th>操作</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {domains.map(d => (
+                  <tr key={d.id}>
+                    <td className="cell-domain">{d.domain}</td>
+                    <td>{d.wildcard ? '是' : '否'}</td>
+                    <td>{d.enabled ? '启用' : '禁用'}</td>
+                    <td>{new Date(d.created_at).toLocaleString('zh-CN')}</td>
+                    {writable && (
+                    <td className="actions">
+                      <button
+                        className="btn btn-sm"
+                        disabled={renewing === d.id}
+                        onClick={() => handleRenew(d)}
+                      >
+                        {renewing === d.id ? '申请中...' : '申请/续签'}
+                      </button>
+                      <button className="btn btn-sm btn-danger" disabled={!!renewing} onClick={() => handleDelete(d.id)}>删除</button>
+                    </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <Sheet
+        open={sheetOpen}
+        title="添加域名"
+        subtitle="每行一个根域名，支持批量导入"
+        onClose={() => setSheetOpen(false)}
+      >
         <form onSubmit={handleAdd}>
           <div className="form-group">
-            <label>批量添加根域名（每行一个）</label>
+            <label>根域名列表</label>
             <textarea
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="example.com&#10;another.com"
+              rows={6}
             />
           </div>
           <div className="form-group">
@@ -103,50 +160,12 @@ export default function Domains() {
               同时申请通配符证书 (*.domain)
             </label>
           </div>
-          <button type="submit" className="btn">添加域名</button>
+          <div className="sheet-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setSheetOpen(false)}>取消</button>
+            <button type="submit" className="btn">添加</button>
+          </div>
         </form>
-      </div>
-      )}
-
-      <div className="card">
-        {domains.length === 0 ? (
-          <p className="empty">暂无域名</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>域名</th>
-                <th>通配符</th>
-                <th>状态</th>
-                <th>添加时间</th>
-                {writable && <th>操作</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {domains.map(d => (
-                <tr key={d.id}>
-                  <td>{d.domain}</td>
-                  <td>{d.wildcard ? '是' : '否'}</td>
-                  <td>{d.enabled ? '启用' : '禁用'}</td>
-                  <td>{new Date(d.created_at).toLocaleString('zh-CN')}</td>
-                  {writable && (
-                  <td className="actions">
-                    <button
-                      className="btn btn-sm"
-                      disabled={renewing === d.id}
-                      onClick={() => handleRenew(d)}
-                    >
-                      {renewing === d.id ? '申请中...' : '申请/续签'}
-                    </button>
-                    <button className="btn btn-sm btn-danger" disabled={!!renewing} onClick={() => handleDelete(d.id)}>删除</button>
-                  </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      </Sheet>
     </div>
   )
 }

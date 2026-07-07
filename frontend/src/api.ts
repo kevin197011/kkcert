@@ -65,7 +65,6 @@ export interface Settings {
   auto_renew_enabled: boolean
   check_cron: string
   cleanup_cron: string
-  api_token: string
   oidc_enabled: boolean
   oidc_issuer: string
   oidc_client_id: string

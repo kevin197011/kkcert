@@ -18,7 +18,6 @@ info:
     |------|----------|--------|------|
     | Session Token | `POST /api/auth/login` | 24h | 用户角色 |
     | API Token | `POST /api/tokens`（仅 admin） | 可配置 / 永久 | 创建时指定 |
-    | Legacy API Token | 系统设置 `api_token` | 永久 | admin |
 
     **AI Agent 推荐流程：**
     1. 管理员创建 API Token（`operator` 或 `admin` 角色）
@@ -187,7 +186,6 @@ components:
         auto_renew_enabled: { type: boolean }
         check_cron: { type: string }
         cleanup_cron: { type: string }
-        api_token: { type: string }
         oidc_enabled: { type: boolean }
         oidc_issuer: { type: string }
         oidc_client_id: { type: string }

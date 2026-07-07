@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api, Certificate, canWriteDomain } from '../api'
 import { useAuth } from '../auth'
 import { PageHeader } from '../components/PageHeader'
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const ok = certs.filter(c => c.status === 'ok').length
   const warning = certs.filter(c => c.status === 'warning').length
   const expired = certs.filter(c => c.status === 'expired').length
+  const attention = certs.filter(c => c.status !== 'ok')
 
   async function handleCheck() {
     await api.runCheck()
@@ -29,7 +31,7 @@ export default function Dashboard() {
     <div>
       <PageHeader
         title={`你好，${user?.username}`}
-        subtitle="证书健康概览与到期预警"
+        subtitle="证书健康概览"
       >
         {writable && <button className="btn" onClick={handleCheck}>立即检测</button>}
       </PageHeader>
@@ -58,11 +60,14 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <p className="page-section-title">需要关注</p>
       <div className="card card-elevated">
-        <h3 className="card-title">证书状态</h3>
         <div className="table-wrap">
-          {certs.length === 0 ? (
-            <p className="empty">暂无证书，请先在域名管理中添加域名并续签</p>
+          {attention.length === 0 ? (
+            <div className="attention-empty">
+              <strong>全部证书状态正常</strong>
+              暂无即将过期或已过期的证书
+            </div>
           ) : (
             <table>
               <thead>
@@ -74,7 +79,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {certs.map(c => (
+                {attention.map(c => (
                   <tr key={c.id}>
                     <td className="cell-domain">{c.domain}</td>
                     <td>{new Date(c.expires_at).toLocaleDateString('zh-CN')}</td>
@@ -88,6 +93,7 @@ export default function Dashboard() {
             </table>
           )}
         </div>
+        <Link to="/certificates" className="page-link">查看全部证书 →</Link>
       </div>
     </div>
   )

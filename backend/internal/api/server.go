@@ -454,7 +454,6 @@ func maskSecrets(s *store.Settings) {
 	s.GoDaddyAPISecret = mask(s.GoDaddyAPISecret)
 	s.GitToken = mask(s.GitToken)
 	s.OIDCClientSecret = mask(s.OIDCClientSecret)
-	s.APIToken = mask(s.APIToken)
 }
 
 func mergeSecrets(incoming *store.Settings, current store.Settings) {
@@ -466,9 +465,6 @@ func mergeSecrets(incoming *store.Settings, current store.Settings) {
 	}
 	if incoming.OIDCClientSecret == "" || strings.HasPrefix(incoming.OIDCClientSecret, "****") {
 		incoming.OIDCClientSecret = current.OIDCClientSecret
-	}
-	if incoming.APIToken == "" || strings.HasPrefix(incoming.APIToken, "****") {
-		incoming.APIToken = current.APIToken
 	}
 }
 

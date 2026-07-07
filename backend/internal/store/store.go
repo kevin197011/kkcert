@@ -51,7 +51,6 @@ type Settings struct {
 	AutoRenewEnabled bool   `json:"auto_renew_enabled"`
 	CheckCron        string `json:"check_cron"`
 	CleanupCron      string `json:"cleanup_cron"`
-	APIToken         string `json:"api_token"`
 	OIDCEnabled      bool   `json:"oidc_enabled"`
 	OIDCIssuer       string `json:"oidc_issuer"`
 	OIDCClientID     string `json:"oidc_client_id"`
