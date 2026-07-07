@@ -2,7 +2,7 @@
 
 | 项目 | 说明 |
 |------|------|
-| 版本 | v1.4.5 |
+| 版本 | v1.4.6 |
 | 日期 | 2026-07-07 |
 | 状态 | 待审核 |
 
@@ -534,7 +534,7 @@ curl http://localhost:8080/api/certificates \
 所有受保护接口：
 
 ```
-Authorization: Bearer <session-token | kkcert_... | legacy-api-token>
+Authorization: Bearer <session-token | kkcert_...>
 ```
 
 ## 7. 部署
@@ -544,6 +544,7 @@ Authorization: Bearer <session-token | kkcert_... | legacy-api-token>
 | 方式 | 说明 |
 |------|------|
 | **Docker Compose（推荐）** | `Rakefile` + `docker-compose.yml`，一键构建运行 |
+| **GHCR 预构建镜像** | GitHub Actions 推送至 `ghcr.io/<owner>/kkcert`（见 7.5） |
 | 单二进制 | `go build` 产物内嵌前端静态资源，适合无 Docker 环境 |
 
 - 镜像多阶段构建：Node 构建前端 → Go 编译后端 → Alpine 运行镜像
@@ -637,6 +638,40 @@ Agent 侧建议配置：
 | `KKCERT_BASE_URL` | 服务地址，如 `http://localhost:8080` |
 | `KKCERT_TOKEN` | API Token（`kkcert_` 前缀） |
 
+### 7.5 GitHub Actions 镜像构建（GHCR）
+
+推送至 `main` 或打 `v*` 标签时，自动构建 Docker 镜像并发布到 **GitHub Container Registry**。
+
+| 项 | 说明 |
+|----|------|
+| 工作流 | `.github/workflows/docker.yml` |
+| 镜像地址 | `ghcr.io/<owner>/kkcert`（`<owner>` 为仓库所属用户或组织，如 `ghcr.io/kevin197011/kkcert`） |
+| 触发条件 | `push` → `main`；`push` → 标签 `v*`；`workflow_dispatch` 手动触发 |
+| 认证 | 使用 `GITHUB_TOKEN`，无需额外 Secret |
+| 权限 | `packages: write`（写入 GHCR） |
+
+**镜像标签规则：**
+
+| 事件 | 标签示例 |
+|------|----------|
+| 推送到 `main` | `latest`、`main`、`<git-sha>` |
+| 推送标签 `v1.2.3` | `1.2.3`、`1.2` |
+
+**拉取与运行：**
+
+```bash
+# 公开仓库可直接拉取；私有仓库需 docker login ghcr.io
+docker pull ghcr.io/<owner>/kkcert:latest
+
+docker run -d --name kkcert \
+  -p 8080:8080 \
+  -v ./data:/data \
+  -e KKCERT_BOOTSTRAP_PASSWORD=your-secure-password \
+  ghcr.io/<owner>/kkcert:latest
+```
+
+首次使用 GHCR 包时，在 GitHub 仓库 **Packages** 页面将镜像可见性设为 `Public`（或按需保持 Private 并 `docker login`）。
+
 ## 8. 验收标准
 
 - [ ] 证书列表页头「一键同步 Git」可将全部有效证书单次 push，操作日志有 `pushed N certificates`
@@ -646,6 +681,7 @@ Agent 侧建议配置：
 - [ ] 续签成功状态条显示过期日期；失败显示 ACME 错误；超过 12min 显示超时提示
 - [ ] 操作日志可见 `renew / started` 及终态记录
 - [ ] `rake run` 后 `curl /api/health` 返回 ok，Web 可登录
+- [ ] 推送到 `main` 后 GitHub Actions 成功构建并推送镜像至 GHCR
 - [ ] `rake logs` 可查看续签与 ACME 日志
 - [ ] 未登录访问受保护 API 返回 401
 - [ ] 本地登录与 OIDC 登录均可获取会话
