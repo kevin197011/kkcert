@@ -112,11 +112,13 @@ code {
 
 .layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar {
   width: 260px;
+  height: 100%;
   background: var(--sidebar-bg);
   padding: 22px 14px;
   display: flex;
@@ -272,9 +274,9 @@ code {
 
 .main-shell {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
   background: var(--bg-shell);
   overflow-y: auto;
   position: relative;
@@ -292,6 +294,12 @@ code {
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .main {
@@ -1523,12 +1531,22 @@ tbody tr:last-child td { border-bottom: none; }
 }
 
 @media (max-width: 768px) {
-  .layout { flex-direction: column; }
+  .layout {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
   .sidebar {
     width: 100%;
+    height: auto;
     border-right: none;
     border-bottom: 1px solid var(--sidebar-border);
     padding: 16px;
+  }
+  .main-shell {
+    min-height: 0;
+    overflow-y: visible;
   }
   .sidebar-nav,
   .sidebar-nav-bottom {

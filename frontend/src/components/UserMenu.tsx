@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth'
-import { useTheme } from '../theme'
 
 function roleLabel(role: string) {
   switch (role) {
@@ -13,7 +12,6 @@ function roleLabel(role: string) {
 
 export function UserMenu() {
   const { user, logout } = useAuth()
-  const { theme, setTheme } = useTheme()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -50,28 +48,6 @@ export function UserMenu() {
               <span className={`role-badge role-${user.role}`}>{roleLabel(user.role)}</span>
             </div>
           </div>
-
-          <div className="user-menu-divider" />
-
-          <div className="user-menu-label">主题</div>
-          <button
-            type="button"
-            role="menuitem"
-            className={`user-menu-item${theme === 'light' ? ' active' : ''}`}
-            onClick={() => setTheme('light')}
-          >
-            <span>浅色模式</span>
-            {theme === 'light' && <span className="user-menu-check">✓</span>}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className={`user-menu-item${theme === 'dark' ? ' active' : ''}`}
-            onClick={() => setTheme('dark')}
-          >
-            <span>深色模式</span>
-            {theme === 'dark' && <span className="user-menu-check">✓</span>}
-          </button>
 
           <div className="user-menu-divider" />
 

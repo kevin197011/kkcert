@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
 import { canManageUsers, canWriteSettings } from './api'
+import { ThemeToggle } from './theme'
 import { UserMenu } from './components/UserMenu'
 import { AnimatedBackground } from './components/AnimatedBackground'
 import { PageFooter } from './components/PageFooter'
@@ -30,7 +31,10 @@ function Layout() {
       <div className="main-shell">
         <AnimatedBackground className="ambient-bg-app" />
         <header className="topbar">
-          <UserMenu />
+          <div className="topbar-actions">
+            <ThemeToggle />
+            <UserMenu />
+          </div>
         </header>
         <main className="main">
           <Routes>
