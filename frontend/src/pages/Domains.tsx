@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, Certificate, Domain, canWriteDomain } from '../api'
 import { useAuth } from '../auth'
+import { formatDate } from '../datetime'
 import { PageHeader } from '../components/PageHeader'
 import { Sheet } from '../components/Sheet'
 import { TablePagination } from '../components/TablePagination'
@@ -179,7 +180,7 @@ export default function Domains() {
                           ? <span className={`badge ${cert.status}`}>{statusLabel(cert.status)}</span>
                           : <span className="text-muted">未签发</span>}
                       </td>
-                      <td>{cert ? new Date(cert.expires_at).toLocaleDateString('zh-CN') : '—'}</td>
+                      <td>{cert ? formatDate(cert.expires_at) : '—'}</td>
                       <td>
                         {cert
                           ? <span className={`days-left days-${cert.status}`}>{cert.days_left} 天</span>

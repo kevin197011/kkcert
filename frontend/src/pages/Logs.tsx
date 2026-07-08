@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, OpLog } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { TablePagination } from '../components/TablePagination'
+import { formatDateTime } from '../datetime'
 import { usePagination } from '../hooks/usePagination'
 
 export default function Logs() {
@@ -36,7 +37,7 @@ export default function Logs() {
               <tbody>
                 {pagination.pageItems.map(l => (
                   <tr key={l.id}>
-                    <td>{new Date(l.created_at).toLocaleString('zh-CN')}</td>
+                    <td>{formatDateTime(l.created_at)}</td>
                     <td className={l.level === 'error' ? 'log-error' : 'log-info'}>{l.level}</td>
                     <td>{l.action}</td>
                     <td>{l.domain || '-'}</td>

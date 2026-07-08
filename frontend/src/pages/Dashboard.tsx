@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, Certificate, canWriteDomain } from '../api'
 import { useAuth } from '../auth'
+import { formatDate } from '../datetime'
 import { PageHeader } from '../components/PageHeader'
 import { IconCheck, IconAlert, IconX } from '../icons'
 
@@ -82,7 +83,7 @@ export default function Dashboard() {
                 {attention.map(c => (
                   <tr key={c.id}>
                     <td className="cell-domain">{c.domain}</td>
-                    <td>{new Date(c.expires_at).toLocaleDateString('zh-CN')}</td>
+                    <td>{formatDate(c.expires_at)}</td>
                     <td>
                       <span className={`days-left days-${c.status}`}>{c.days_left} 天</span>
                     </td>

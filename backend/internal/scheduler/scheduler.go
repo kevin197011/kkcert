@@ -8,6 +8,7 @@ import (
 
 	"github.com/kevin/kkcert/internal/certsvc"
 	"github.com/kevin/kkcert/internal/store"
+	"github.com/kevin/kkcert/internal/tz"
 	"github.com/robfig/cron/v3"
 )
 
@@ -25,7 +26,7 @@ func New(st *store.Store, dataDir string) *Scheduler {
 		store:   st,
 		certs:   certsvc.New(st, dataDir),
 		dataDir: dataDir,
-		cron:    cron.New(),
+		cron:    cron.New(cron.WithLocation(tz.Location)),
 	}
 }
 

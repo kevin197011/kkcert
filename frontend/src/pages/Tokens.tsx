@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, APIToken } from '../api'
+import { formatDateTime } from '../datetime'
 import { PageHeader } from '../components/PageHeader'
 import { Sheet } from '../components/Sheet'
 import { TablePagination } from '../components/TablePagination'
@@ -74,8 +75,8 @@ export default function Tokens() {
                   <td className="cell-domain">{t.name}</td>
                   <td><code>{t.prefix}</code></td>
                   <td>{t.role}</td>
-                  <td>{new Date(t.created_at).toLocaleString('zh-CN')}</td>
-                  <td>{t.last_used_at ? new Date(t.last_used_at).toLocaleString('zh-CN') : '-'}</td>
+                  <td>{formatDateTime(t.created_at)}</td>
+                  <td>{t.last_used_at ? formatDateTime(t.last_used_at) : '-'}</td>
                   <td>
                     <button className="btn btn-sm btn-danger" onClick={() => handleRevoke(t.id)}>吊销</button>
                   </td>

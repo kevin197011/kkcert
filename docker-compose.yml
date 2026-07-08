@@ -9,4 +9,5 @@ services:
       KKCERT_DATA_DIR: /data
       KKCERT_LISTEN: ":8080"
       KKCERT_BOOTSTRAP_PASSWORD: ${KKCERT_BOOTSTRAP_PASSWORD:-changeme}
+      TZ: Asia/Shanghai
     restart: unless-stopped

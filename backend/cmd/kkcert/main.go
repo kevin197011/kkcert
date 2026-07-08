@@ -15,6 +15,7 @@ import (
 	"github.com/kevin/kkcert/internal/api"
 	"github.com/kevin/kkcert/internal/scheduler"
 	"github.com/kevin/kkcert/internal/store"
+	"github.com/kevin/kkcert/internal/tz"
 )
 
 //go:embed all:dist
@@ -29,6 +30,7 @@ func main() {
 	flag.Parse()
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	time.Local = tz.Location
 
 	dbPath := dataDir + "/kkcert.db"
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
