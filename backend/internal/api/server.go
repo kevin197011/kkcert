@@ -2,14 +2,17 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/kevin/kkcert/internal/auth"
+	"github.com/kevin/kkcert/internal/certpack"
 	"github.com/kevin/kkcert/internal/certsvc"
 	"github.com/kevin/kkcert/internal/scheduler"
 	"github.com/kevin/kkcert/internal/store"
@@ -18,107 +21,26 @@ import (
 type Server struct {
 	store     *store.Store
 	scheduler *scheduler.Scheduler
+	dataDir   string
 	oidc      *auth.OIDCHandler
 	static    fs.FS
+	handler   http.Handler
 }
 
-func NewServer(st *store.Store, sched *scheduler.Scheduler, static fs.FS) *Server {
-	return &Server{
+func NewServer(st *store.Store, sched *scheduler.Scheduler, dataDir string, static fs.FS) *Server {
+	s := &Server{
 		store:     st,
 		scheduler: sched,
+		dataDir:   dataDir,
 		oidc:      &auth.OIDCHandler{Store: st},
 		static:    static,
 	}
+	s.handler = s.routes()
+	return s
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/api/health" {
-		writeJSON(w, map[string]string{"status": "ok"})
-		return
-	}
-	if r.URL.Path == "/api/openapi.yaml" {
-		serveOpenAPI(w, r)
-		return
-	}
-	if r.URL.Path == "/api/docs" {
-		serveSwaggerUI(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/auth/") {
-		s.handleAuth(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/") {
-		principal, err := auth.Authenticate(s.store, r)
-		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		s.handleAPI(w, r, principal)
-		return
-	}
-
-	if s.static != nil {
-		serveSPA(w, r, s.static)
-		return
-	}
-	http.NotFound(w, r)
-}
-
-func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/auth")
-	switch {
-	case path == "/config" && r.Method == http.MethodGet:
-		settings, err := s.store.GetSettings()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		writeJSON(w, map[string]bool{"oidc_enabled": settings.OIDCEnabled})
-	case path == "/login" && r.Method == http.MethodPost:
-		var req struct {
-			Username string `json:"username"`
-			Password string `json:"password"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-		token, err := auth.LoginLocal(s.store, req.Username, req.Password)
-		if err != nil {
-			http.Error(w, "invalid credentials", 401)
-			return
-		}
-		writeJSON(w, map[string]string{"token": token})
-	case path == "/oidc/login" && r.Method == http.MethodGet:
-		url, err := s.oidc.LoginURL(w, r)
-		if err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-		http.Redirect(w, r, url, http.StatusFound)
-	case path == "/oidc/callback" && r.Method == http.MethodGet:
-		token, err := s.oidc.Callback(w, r)
-		if err != nil {
-			http.Error(w, err.Error(), 401)
-			return
-		}
-		http.Redirect(w, r, "/login?token="+token, http.StatusFound)
-	case path == "/me" && r.Method == http.MethodGet:
-		principal, err := auth.Authenticate(s.store, r)
-		if err != nil {
-			http.Error(w, "unauthorized", 401)
-			return
-		}
-		writeJSON(w, toUserView(principal.User))
-	case path == "/logout" && r.Method == http.MethodPost:
-		auth.Logout(s.store, auth.BearerToken(r))
-		w.WriteHeader(http.StatusNoContent)
-	default:
-		http.NotFound(w, r)
-	}
+	s.handler.ServeHTTP(w, r)
 }
 
 type userDTO struct {
@@ -134,133 +56,7 @@ func toUserView(u store.User) userDTO {
 	return userDTO{ID: u.ID, Username: u.Username, Email: u.Email, Role: u.Role, AuthType: u.AuthType, Enabled: u.Enabled}
 }
 
-func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request, p *auth.Principal) {
-	path := strings.TrimPrefix(r.URL.Path, "/api")
-	role := p.User.Role
-
-	switch {
-	case path == "/domains" && r.Method == http.MethodGet:
-		if !auth.CanRead(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		s.listDomains(w)
-	case path == "/domains" && r.Method == http.MethodPost:
-		if !auth.CanWriteDomain(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		s.createDomains(w, r)
-	case strings.HasPrefix(path, "/domains/") && strings.HasSuffix(path, "/renew") && r.Method == http.MethodPost:
-		if !auth.CanWriteDomain(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		id := strings.TrimSuffix(strings.TrimPrefix(path, "/domains/"), "/renew")
-		s.renewDomain(w, id)
-	case strings.HasPrefix(path, "/domains/") && r.Method == http.MethodDelete:
-		if !auth.CanWriteDomain(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		id := strings.TrimPrefix(path, "/domains/")
-		s.deleteDomain(w, id)
-	case path == "/certificates" && r.Method == http.MethodGet:
-		s.listCertificates(w)
-	case path == "/certificates/sync-git" && r.Method == http.MethodPost:
-		if !auth.CanWriteDomain(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		s.syncAllCertsGit(w)
-	case path == "/settings" && r.Method == http.MethodGet:
-		s.getSettings(w)
-	case path == "/settings" && r.Method == http.MethodPut:
-		if !auth.CanWriteSettings(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		s.putSettings(w, r)
-	case path == "/settings/acme/reset" && r.Method == http.MethodPost:
-		if !auth.CanWriteSettings(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		s.resetACME(w, r)
-	case path == "/logs" && r.Method == http.MethodGet:
-		s.listLogs(w)
-	case path == "/check/run" && r.Method == http.MethodPost:
-		if !auth.CanWriteDomain(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		go func() { _ = s.scheduler.RunCheck() }()
-		writeJSON(w, map[string]string{"status": "started"})
-	case path == "/cleanup/run" && r.Method == http.MethodPost:
-		if !auth.CanWriteSettings(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		go func() { _ = s.scheduler.RunCleanup() }()
-		writeJSON(w, map[string]string{"status": "started"})
-	case path == "/tokens" && r.Method == http.MethodGet:
-		if !auth.CanManageUsers(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		s.listTokens(w)
-	case path == "/tokens" && r.Method == http.MethodPost:
-		if !auth.CanManageUsers(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		s.createToken(w, r)
-	case strings.HasPrefix(path, "/tokens/") && r.Method == http.MethodPut:
-		if !auth.CanManageUsers(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		id := strings.TrimPrefix(path, "/tokens/")
-		s.updateToken(w, r, id)
-	case strings.HasPrefix(path, "/tokens/") && r.Method == http.MethodDelete:
-		if !auth.CanManageUsers(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		id := strings.TrimPrefix(path, "/tokens/")
-		s.deleteToken(w, id)
-	case path == "/users" && r.Method == http.MethodGet:
-		if !auth.CanManageUsers(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		s.listUsers(w)
-	case path == "/users" && r.Method == http.MethodPost:
-		if !auth.CanManageUsers(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		s.createUser(w, r)
-	case strings.HasPrefix(path, "/users/") && r.Method == http.MethodPut:
-		if !auth.CanManageUsers(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		id := strings.TrimPrefix(path, "/users/")
-		s.updateUser(w, r, id)
-	case strings.HasPrefix(path, "/users/") && r.Method == http.MethodDelete:
-		if !auth.CanManageUsers(role) {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		id := strings.TrimPrefix(path, "/users/")
-		s.deleteUser(w, id)
-	default:
-		http.NotFound(w, r)
-	}
-}
-
-func (s *Server) listDomains(w http.ResponseWriter) {
+func (s *Server) listDomains(w http.ResponseWriter, _ *http.Request) {
 	domains, err := s.store.ListDomains(false)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -312,7 +108,8 @@ func splitDomains(raw string) []string {
 	return out
 }
 
-func (s *Server) deleteDomain(w http.ResponseWriter, id string) {
+func (s *Server) deleteDomain(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
 	if err := s.store.DeleteDomain(id); err != nil {
 		http.Error(w, err.Error(), 404)
 		return
@@ -320,7 +117,8 @@ func (s *Server) deleteDomain(w http.ResponseWriter, id string) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) renewDomain(w http.ResponseWriter, id string) {
+func (s *Server) renewDomain(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
 	settings, err := s.store.GetSettings()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -355,7 +153,7 @@ type certView struct {
 	Status   string `json:"status"`
 }
 
-func (s *Server) listCertificates(w http.ResponseWriter) {
+func (s *Server) listCertificates(w http.ResponseWriter, _ *http.Request) {
 	certs, err := s.store.ListCertificates()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -375,7 +173,7 @@ func (s *Server) listCertificates(w http.ResponseWriter) {
 	writeJSON(w, views)
 }
 
-func (s *Server) syncAllCertsGit(w http.ResponseWriter) {
+func (s *Server) syncAllCertsGit(w http.ResponseWriter, _ *http.Request) {
 	settings, err := s.store.GetSettings()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -394,7 +192,39 @@ func (s *Server) syncAllCertsGit(w http.ResponseWriter) {
 	writeJSON(w, map[string]any{"status": "ok", "count": n})
 }
 
-func (s *Server) getSettings(w http.ResponseWriter) {
+func (s *Server) downloadDomainCert(w http.ResponseWriter, r *http.Request) {
+	domainID := chi.URLParam(r, "id")
+	if _, err := s.store.GetDomain(domainID); err != nil {
+		http.Error(w, "domain not found", 404)
+		return
+	}
+	cert, ok := s.store.GetActiveCert(domainID)
+	if !ok {
+		http.Error(w, "该域名尚未签发证书，无法下载", http.StatusBadRequest)
+		return
+	}
+	switch certsvc.CertStatus(cert.ExpiresAt) {
+	case "expired":
+		http.Error(w, "证书已过期，无法下载，请先续签", http.StatusBadRequest)
+		return
+	case "warning":
+		http.Error(w, "证书即将过期，无法下载，请先续签", http.StatusBadRequest)
+		return
+	}
+
+	zipPath, err := certpack.CreateDomainZip(certpack.DownloadsDir(s.dataDir), cert)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	filename := fmt.Sprintf("%s-cert.zip", cert.Domain)
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	http.ServeFile(w, r, zipPath)
+}
+
+func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
 	settings, err := s.store.GetSettings()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -468,7 +298,7 @@ func mergeSecrets(incoming *store.Settings, current store.Settings) {
 	}
 }
 
-func (s *Server) listLogs(w http.ResponseWriter) {
+func (s *Server) listLogs(w http.ResponseWriter, _ *http.Request) {
 	logs, err := s.store.ListLogs()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -477,7 +307,7 @@ func (s *Server) listLogs(w http.ResponseWriter) {
 	writeJSON(w, logs)
 }
 
-func (s *Server) listUsers(w http.ResponseWriter) {
+func (s *Server) listUsers(w http.ResponseWriter, _ *http.Request) {
 	users, err := s.store.ListUsers()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -516,7 +346,8 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, toUserView(u))
 }
 
-func (s *Server) updateUser(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
 	u, err := s.store.GetUser(id)
 	if err != nil {
 		http.Error(w, err.Error(), 404)
@@ -576,7 +407,8 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request, id string) {
 	writeJSON(w, toUserView(u))
 }
 
-func (s *Server) deleteUser(w http.ResponseWriter, id string) {
+func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
 	u, err := s.store.GetUser(id)
 	if err != nil {
 		http.Error(w, err.Error(), 404)

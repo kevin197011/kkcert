@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/kevin/kkcert/internal/auth"
 	"github.com/kevin/kkcert/internal/store"
 )
@@ -52,7 +53,7 @@ func toTokenDTO(t store.APIToken) tokenDTO {
 
 const timeRFC3339 = "2006-01-02T15:04:05Z07:00"
 
-func (s *Server) listTokens(w http.ResponseWriter) {
+func (s *Server) listTokens(w http.ResponseWriter, _ *http.Request) {
 	tokens, err := s.store.ListAPITokens()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -80,7 +81,8 @@ func (s *Server) createToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, createTokenResp{tokenDTO: toTokenDTO(t), Token: raw})
 }
 
-func (s *Server) updateToken(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) updateToken(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
 	t, err := s.store.GetAPIToken(id)
 	if err != nil {
 		http.Error(w, err.Error(), 404)
@@ -107,7 +109,8 @@ func (s *Server) updateToken(w http.ResponseWriter, r *http.Request, id string) 
 	writeJSON(w, toTokenDTO(t))
 }
 
-func (s *Server) deleteToken(w http.ResponseWriter, id string) {
+func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
 	if err := s.store.DeleteAPIToken(id); err != nil {
 		http.Error(w, err.Error(), 404)
 		return

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kevin/kkcert/internal/certpack"
 	"github.com/kevin/kkcert/internal/certsvc"
 	"github.com/kevin/kkcert/internal/store"
 	"github.com/kevin/kkcert/internal/tz"
@@ -57,6 +58,20 @@ func (s *Scheduler) Start() error {
 		slog.Info("scheduled data cleanup started")
 		if err := s.RunCleanup(); err != nil {
 			slog.Error("scheduled cleanup failed", "err", err)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	_, err = s.cron.AddFunc("0 0 * * *", func() {
+		n, err := certpack.CleanupDir(certpack.DownloadsDir(s.dataDir))
+		if err != nil {
+			slog.Error("download cleanup failed", "err", err)
+			return
+		}
+		if n > 0 {
+			slog.Info("download cleanup", "removed", n)
 		}
 	})
 	if err != nil {

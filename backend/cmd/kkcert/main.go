@@ -53,7 +53,7 @@ func main() {
 	defer sched.Stop()
 
 	distFS, _ := fs.Sub(frontendFS, "dist")
-	srv := api.NewServer(st, sched, distFS)
+	srv := api.NewServer(st, sched, dataDir, distFS)
 
 	httpSrv := &http.Server{
 		Addr:         listen,

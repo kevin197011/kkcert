@@ -93,6 +93,34 @@ export interface OpLog {
   created_at: string
 }
 
+async function downloadBlob(path: string, fallbackName: string) {
+  const token = localStorage.getItem(TOKEN_KEY)
+  const res = await fetch(`/api${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_KEY)
+    if (!window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login'
+    }
+    throw new Error('unauthorized')
+  }
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || res.statusText)
+  }
+  const blob = await res.blob()
+  const disp = res.headers.get('Content-Disposition') || ''
+  const match = /filename="?([^";]+)"?/.exec(disp)
+  const name = match ? decodeURIComponent(match[1]) : fallbackName
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<{ token: string }>('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
@@ -110,6 +138,8 @@ export const api = {
     request<Domain[]>('/domains', { method: 'POST', body: JSON.stringify({ domains, wildcard }) }),
   deleteDomain: (id: string) => request<void>(`/domains/${id}`, { method: 'DELETE' }),
   renewDomain: (id: string) => request<{ status: string }>(`/domains/${id}/renew`, { method: 'POST' }),
+  downloadDomainCert: (id: string, domain: string) =>
+    downloadBlob(`/domains/${id}/download`, `${domain}-cert.zip`),
   listCertificates: () => request<Certificate[]>('/certificates').then(r => r ?? []),
   syncAllCertsGit: () => request<{ status: string; count: number }>('/certificates/sync-git', { method: 'POST' }),
   getSettings: () => request<Settings>('/settings'),

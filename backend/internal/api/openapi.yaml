@@ -456,6 +456,31 @@ paths:
         '400':
           description: 未配置 ACME/GoDaddy
 
+  /api/domains/{id}/download:
+    get:
+      tags: [domains]
+      summary: 下载域名证书包
+      description: 打包 fullchain.pem、privkey.pem、metadata.json 为 zip；仅证书状态为 ok 时可下载
+      operationId: downloadDomainCert
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: zip 证书包
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: 未签发、即将过期或已过期
+        '404':
+          description: 域名不存在
+
   /api/certificates:
     get:
       tags: [certificates]

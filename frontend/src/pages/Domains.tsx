@@ -35,6 +35,8 @@ export default function Domains() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [gitNotice, setGitNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const [downloadNotice, setDownloadNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const [downloading, setDownloading] = useState<string | null>(null)
 
   function load() {
     Promise.all([api.listDomains(), api.listCertificates()])
@@ -97,6 +99,28 @@ export default function Domains() {
     }
   }
 
+  async function handleDownload(d: Domain) {
+    const cert = certByDomainId.get(d.id)
+    if (!cert) {
+      setDownloadNotice({ kind: 'err', text: `${d.domain}：尚未签发证书，无法下载` })
+      return
+    }
+    if (cert.status !== 'ok') {
+      const reason = cert.status === 'expired' ? '证书已过期' : '证书即将过期'
+      setDownloadNotice({ kind: 'err', text: `${d.domain}：${reason}，请先续签后再下载` })
+      return
+    }
+    setDownloading(d.id)
+    setDownloadNotice(null)
+    try {
+      await api.downloadDomainCert(d.id, d.domain)
+    } catch (e) {
+      setDownloadNotice({ kind: 'err', text: (e as Error).message })
+    } finally {
+      setDownloading(null)
+    }
+  }
+
   async function handleSyncAllGit() {
     setSyncing(true)
     setGitNotice(null)
@@ -147,6 +171,13 @@ export default function Domains() {
         </div>
       )}
 
+      {downloadNotice && (
+        <div className={`notice notice-${downloadNotice.kind}`}>
+          {downloadNotice.text}
+          <button type="button" className="notice-close" onClick={() => setDownloadNotice(null)}>×</button>
+        </div>
+      )}
+
       <div className="card card-elevated">
         {domains.length === 0 ? (
           <div className="attention-empty">
@@ -164,7 +195,7 @@ export default function Domains() {
                   <th>证书状态</th>
                   <th>过期时间</th>
                   <th>剩余天数</th>
-                  {writable && <th>操作</th>}
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -186,18 +217,28 @@ export default function Domains() {
                           ? <span className={`days-left days-${cert.status}`}>{cert.days_left} 天</span>
                           : '—'}
                       </td>
-                      {writable && (
-                        <td className="actions">
-                          <button
-                            className="btn btn-sm"
-                            disabled={renewing === d.id}
-                            onClick={() => handleRenew(d)}
-                          >
-                            {renewing === d.id ? '申请中...' : '申请/续签'}
-                          </button>
-                          <button className="btn btn-sm btn-danger" disabled={!!renewing} onClick={() => handleDelete(d.id)}>删除</button>
-                        </td>
-                      )}
+                      <td className="actions">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          disabled={downloading === d.id}
+                          onClick={() => handleDownload(d)}
+                        >
+                          {downloading === d.id ? '打包中...' : '下载'}
+                        </button>
+                        {writable && (
+                          <>
+                            <button
+                              className="btn btn-sm"
+                              disabled={renewing === d.id}
+                              onClick={() => handleRenew(d)}
+                            >
+                              {renewing === d.id ? '申请中...' : '申请/续签'}
+                            </button>
+                            <button className="btn btn-sm btn-danger" disabled={!!renewing} onClick={() => handleDelete(d.id)}>删除</button>
+                          </>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
