@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { api, User, canEditUser } from '../api'
 import { useAuth } from '../auth'
 import { PageHeader } from '../components/PageHeader'
+import { Notice } from '../components/Notice'
 import { Sheet } from '../components/Sheet'
+import { useFeedback } from '../feedback'
 import { TablePagination } from '../components/TablePagination'
 import { usePagination } from '../hooks/usePagination'
 
@@ -14,6 +16,7 @@ const roleLabel: Record<string, string> = {
 
 export default function Users() {
   const { user: me } = useAuth()
+  const { toast, confirm } = useFeedback()
   const [users, setUsers] = useState<User[]>([])
   const [form, setForm] = useState({ username: '', email: '', password: '', role: 'viewer' })
   const [edit, setEdit] = useState<User | null>(null)
@@ -42,10 +45,16 @@ export default function Users() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    await api.createUser(form)
-    setForm({ username: '', email: '', password: '', role: 'viewer' })
-    setSheetOpen(false)
-    load()
+    const username = form.username
+    try {
+      await api.createUser(form)
+      setForm({ username: '', email: '', password: '', role: 'viewer' })
+      setSheetOpen(false)
+      load()
+      toast({ kind: 'ok', title: '用户已创建', message: username })
+    } catch (e) {
+      toast({ kind: 'err', title: '创建失败', message: (e as Error).message })
+    }
   }
 
   async function handleSaveEdit(e: React.FormEvent) {
@@ -61,18 +70,26 @@ export default function Users() {
       await api.updateUser(edit.id, data)
       setEdit(null)
       load()
+      toast({ kind: 'ok', message: `已更新用户 ${edit.username}` })
     } catch (err) {
-      alert((err as Error).message)
+      toast({ kind: 'err', title: '保存失败', message: (err as Error).message })
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('确认删除该用户？')) return
+  async function handleDelete(id: string, username: string) {
+    const ok = await confirm({
+      title: '删除用户',
+      message: `确认删除用户 ${username}？此操作不可撤销。`,
+      confirmLabel: '删除',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await api.deleteUser(id)
       load()
+      toast({ kind: 'ok', message: `已删除用户 ${username}` })
     } catch (e) {
-      alert((e as Error).message)
+      toast({ kind: 'err', title: '删除失败', message: (e as Error).message })
     }
   }
 
@@ -114,7 +131,7 @@ export default function Users() {
                         <>
                           <button type="button" className="btn btn-sm" onClick={() => openEdit(u)}>编辑</button>
                           {isAdmin && (
-                            <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDelete(u.id)}>删除</button>
+                            <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDelete(u.id, u.username)}>删除</button>
                           )}
                         </>
                       ) : (

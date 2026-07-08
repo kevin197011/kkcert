@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react'
 import { api, APIToken } from '../api'
 import { formatDateTime } from '../datetime'
 import { PageHeader } from '../components/PageHeader'
+import { Notice } from '../components/Notice'
 import { Sheet } from '../components/Sheet'
+import { useFeedback } from '../feedback'
 import { TablePagination } from '../components/TablePagination'
 import { usePagination } from '../hooks/usePagination'
 
 export default function Tokens() {
+  const { toast, confirm } = useFeedback()
   const [tokens, setTokens] = useState<APIToken[]>([])
   const [form, setForm] = useState({ name: '', role: 'operator', expires_days: 0 })
   const [created, setCreated] = useState('')
@@ -22,17 +25,32 @@ export default function Tokens() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    const res = await api.createToken(form)
-    setCreated(res.token)
-    setForm({ name: '', role: 'operator', expires_days: 0 })
-    setSheetOpen(false)
-    load()
+    try {
+      const res = await api.createToken(form)
+      setCreated(res.token)
+      setForm({ name: '', role: 'operator', expires_days: 0 })
+      setSheetOpen(false)
+      load()
+    } catch (e) {
+      toast({ kind: 'err', title: '创建失败', message: (e as Error).message })
+    }
   }
 
-  async function handleRevoke(id: string) {
-    if (!confirm('确认吊销该 Token？')) return
-    await api.deleteToken(id)
-    load()
+  async function handleRevoke(id: string, name: string) {
+    const ok = await confirm({
+      title: '吊销 Token',
+      message: `确认吊销「${name}」？吊销后该 Token 将立即失效。`,
+      confirmLabel: '吊销',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await api.deleteToken(id)
+      load()
+      toast({ kind: 'ok', message: `已吊销 Token「${name}」` })
+    } catch (e) {
+      toast({ kind: 'err', title: '吊销失败', message: (e as Error).message })
+    }
   }
 
   if (loading) return <p className="loading">加载中...</p>
@@ -45,13 +63,10 @@ export default function Tokens() {
       </PageHeader>
 
       {created && (
-        <div className="notice notice-ok">
-          <div>
-            <strong>Token 已创建（仅显示一次，请立即复制）：</strong>
-            <code style={{ display: 'block', marginTop: 8, wordBreak: 'break-all' }}>{created}</code>
-          </div>
-          <button type="button" className="notice-close" onClick={() => setCreated('')}>×</button>
-        </div>
+        <Notice kind="ok" title="Token 已创建" onClose={() => setCreated('')}>
+          <p>以下 Token 仅显示一次，请立即复制保存：</p>
+          <code className="notice-code">{created}</code>
+        </Notice>
       )}
 
       <div className="card card-elevated">
@@ -78,7 +93,7 @@ export default function Tokens() {
                   <td>{formatDateTime(t.created_at)}</td>
                   <td>{t.last_used_at ? formatDateTime(t.last_used_at) : '-'}</td>
                   <td>
-                    <button className="btn btn-sm btn-danger" onClick={() => handleRevoke(t.id)}>吊销</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleRevoke(t.id, t.name)}>吊销</button>
                   </td>
                 </tr>
               ))}

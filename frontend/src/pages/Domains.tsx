@@ -3,7 +3,9 @@ import { api, Certificate, Domain, canWriteDomain } from '../api'
 import { useAuth } from '../auth'
 import { formatDate } from '../datetime'
 import { PageHeader } from '../components/PageHeader'
+import { Notice } from '../components/Notice'
 import { Sheet } from '../components/Sheet'
+import { useFeedback } from '../feedback'
 import { TablePagination } from '../components/TablePagination'
 import { usePagination } from '../hooks/usePagination'
 
@@ -24,6 +26,7 @@ function statusLabel(s: string) {
 
 export default function Domains() {
   const { user } = useAuth()
+  const { toast, confirm } = useFeedback()
   const writable = user && canWriteDomain(user.role)
   const [domains, setDomains] = useState<Domain[]>([])
   const [certByDomainId, setCertByDomainId] = useState<Map<string, Certificate>>(new Map())
@@ -52,16 +55,32 @@ export default function Domains() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     if (!input.trim()) return
-    await api.createDomains(input, wildcard)
-    setInput('')
-    setSheetOpen(false)
-    load()
+    try {
+      const created = await api.createDomains(input, wildcard)
+      setInput('')
+      setSheetOpen(false)
+      load()
+      toast({ kind: 'ok', title: '域名已添加', message: `成功添加 ${created.length} 个域名` })
+    } catch (e) {
+      toast({ kind: 'err', title: '添加失败', message: (e as Error).message })
+    }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('确认删除该域名？关联证书将一并清除。')) return
-    await api.deleteDomain(id)
-    load()
+  async function handleDelete(id: string, domain: string) {
+    const ok = await confirm({
+      title: '删除域名',
+      message: `确认删除 ${domain}？关联证书将一并清除，此操作不可撤销。`,
+      confirmLabel: '删除',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await api.deleteDomain(id)
+      load()
+      toast({ kind: 'ok', message: `已删除 ${domain}` })
+    } catch (e) {
+      toast({ kind: 'err', title: '删除失败', message: (e as Error).message })
+    }
   }
 
   async function handleRenew(d: Domain) {
@@ -127,8 +146,11 @@ export default function Domains() {
     try {
       const res = await api.syncAllCertsGit()
       setGitNotice({ kind: 'ok', text: `已将 ${res.count} 个域名证书同步到 Git 仓库` })
+      toast({ kind: 'ok', title: 'Git 同步完成', message: `已推送 ${res.count} 个域名证书` })
     } catch (e) {
-      setGitNotice({ kind: 'err', text: (e as Error).message })
+      const msg = (e as Error).message
+      setGitNotice({ kind: 'err', text: msg })
+      toast({ kind: 'err', title: 'Git 同步失败', message: msg })
     } finally {
       setSyncing(false)
     }
@@ -158,24 +180,21 @@ export default function Domains() {
       </PageHeader>
 
       {status && (
-        <div className={`notice notice-${status.kind}`}>
-          <strong>{status.domain}</strong> — {status.text}
-          <button type="button" className="notice-close" onClick={() => setStatus(null)}>×</button>
-        </div>
+        <Notice kind={status.kind} title={status.domain} onClose={() => setStatus(null)}>
+          {status.text}
+        </Notice>
       )}
 
       {gitNotice && (
-        <div className={`notice notice-${gitNotice.kind}`}>
+        <Notice kind={gitNotice.kind} title="Git 同步" onClose={() => setGitNotice(null)}>
           {gitNotice.text}
-          <button type="button" className="notice-close" onClick={() => setGitNotice(null)}>×</button>
-        </div>
+        </Notice>
       )}
 
       {downloadNotice && (
-        <div className={`notice notice-${downloadNotice.kind}`}>
+        <Notice kind={downloadNotice.kind} title="证书下载" onClose={() => setDownloadNotice(null)}>
           {downloadNotice.text}
-          <button type="button" className="notice-close" onClick={() => setDownloadNotice(null)}>×</button>
-        </div>
+        </Notice>
       )}
 
       <div className="card card-elevated">
@@ -235,7 +254,7 @@ export default function Domains() {
                             >
                               {renewing === d.id ? '申请中...' : '申请/续签'}
                             </button>
-                            <button className="btn btn-sm btn-danger" disabled={!!renewing} onClick={() => handleDelete(d.id)}>删除</button>
+                            <button className="btn btn-sm btn-danger" disabled={!!renewing} onClick={() => handleDelete(d.id, d.domain)}>删除</button>
                           </>
                         )}
                       </td>

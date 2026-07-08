@@ -439,6 +439,7 @@ curl http://localhost:8080/api/certificates \
 - 使用 CSS 变量统一管理颜色，禁止硬编码色值
 - 主色：靛蓝渐变（`--accent` → `--accent-2`），点缀色青绿（`--accent-3`）
 - 布局：深色渐变侧栏 + 浅色/深色主内容区，径向光晕背景；**桌面端侧栏固定视口高度**（系统区分栏底），主内容区独立滚动，避免长列表页把侧栏底栏顶出屏幕
+- **主内容区版心**：最大宽度 1400px、水平居中；页面内边距 56px（桌面）/ 20px（移动）；区块间距 32px；标题 32px
 - 侧栏：三区布局 + 分组导航 + SVG 图标（见下表）
 - 顶栏：主题切换按钮 + 用户头像下拉（用户名、角色、退出）
 - 页脚：所有页面（含登录页）底部统一展示「系统运维驱动」（`PageFooter` 组件）
@@ -447,7 +448,7 @@ curl http://localhost:8080/api/certificates \
 - 动态背景：登录页与后台主内容区使用**运维拓扑风格**轻量动画（正交网格、链路脉冲、节点状态闪烁）；侧栏光晕仅透明度呼吸，无位移
 - 登录页 Logo 图标**静态**展示，不做浮动动画
 - 无障碍：`prefers-reduced-motion` 时关闭全部背景动画
-- 卡片圆角 16px，表格行 hover，表单 focus 环，按钮渐变；卡片半透明毛玻璃
+- 卡片圆角 18px，表格行 hover，表单 focus 环，按钮渐变；卡片内边距 32px+，表格单元格 16×20px
 - 响应式：≤768px 侧栏折叠为顶栏下方分组网格导航（保留分组标题）
 
 #### 侧栏信息架构
@@ -507,11 +508,25 @@ curl http://localhost:8080/api/certificates \
 
 组件路径：`frontend/src/hooks/usePagination.ts`、`frontend/src/components/TablePagination.tsx`
 
+#### 操作反馈（Toast / 确认框 / 状态条）
+
+全站**禁止**使用浏览器原生 `alert` / `confirm`，统一使用应用内组件：
+
+| 类型 | 组件 | 场景 |
+|------|------|------|
+| **Toast** | `useFeedback().toast` | 保存成功、删除完成、任务启动等短反馈；右上角浮层，4s 自动消失（错误 6s） |
+| **确认框** | `useFeedback().confirm` | 删除域名/用户、吊销 Token、重置 ACME 等破坏性操作；居中模态，支持取消 |
+| **状态条** | `Notice` | 续签进度、Git 同步结果、证书下载告警、新建 Token 展示等需停留阅读的反馈 |
+
+- Toast / 确认框由 `FeedbackProvider`（`frontend/src/feedback.tsx`）全局挂载
+- 状态条位于 `PageHeader` 下方，含图标、标题、正文，可手动关闭
+- 破坏性确认按钮使用红色强调（`danger: true`）
+
 #### 域名续签状态条
 
 - 位置：域名与证书页列表上方（`PageHeader` 下方）
 - 与 DNS 传播等待对齐：进行中提示「1～5 分钟」，轮询超时 12 分钟
-- 样式复用 `notice` / `notice-info` / `notice-ok` / `notice-err`
+- 样式复用 `Notice` 组件（`notice-info` / `notice-ok` / `notice-err`）
 
 #### 品牌标识与图标
 

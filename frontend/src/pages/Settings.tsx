@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, Settings } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { Tabs } from '../components/Tabs'
+import { useFeedback } from '../feedback'
 
 const SETTING_TABS = [
   { id: 'acme', label: 'ACME' },
@@ -14,6 +15,7 @@ const SETTING_TABS = [
 type TabId = (typeof SETTING_TABS)[number]['id']
 
 export default function SettingsPage() {
+  const { toast, confirm } = useFeedback()
   const [settings, setSettings] = useState<Settings | null>(null)
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState<TabId>('acme')
@@ -28,18 +30,28 @@ export default function SettingsPage() {
     setSaving(true)
     try {
       await api.putSettings(settings)
-      alert('保存成功')
+      toast({ kind: 'ok', title: '保存成功', message: '系统设置已更新' })
     } catch (err) {
-      alert('保存失败: ' + (err as Error).message)
+      toast({ kind: 'err', title: '保存失败', message: (err as Error).message })
     } finally {
       setSaving(false)
     }
   }
 
   async function handleResetACME() {
-    if (!confirm('确认重置 ACME 账户？下次申请将重新注册。')) return
-    await api.resetACME()
-    alert('ACME 账户已重置')
+    const ok = await confirm({
+      title: '重置 ACME 账户',
+      message: '下次申请证书时将向 Let\'s Encrypt 重新注册账户。仅在账户损坏或切换环境时使用。',
+      confirmLabel: '重置',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await api.resetACME()
+      toast({ kind: 'ok', title: '已重置', message: 'ACME 账户已清除，下次申请将重新注册' })
+    } catch (e) {
+      toast({ kind: 'err', title: '重置失败', message: (e as Error).message })
+    }
   }
 
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {

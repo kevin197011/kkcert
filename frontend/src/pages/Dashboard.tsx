@@ -4,10 +4,12 @@ import { api, Certificate, canWriteDomain } from '../api'
 import { useAuth } from '../auth'
 import { formatDate } from '../datetime'
 import { PageHeader } from '../components/PageHeader'
+import { useFeedback } from '../feedback'
 import { IconCheck, IconAlert, IconX } from '../icons'
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const { toast } = useFeedback()
   const writable = user && canWriteDomain(user.role)
   const [certs, setCerts] = useState<Certificate[]>([])
   const [loading, setLoading] = useState(true)
@@ -22,8 +24,16 @@ export default function Dashboard() {
   const attention = certs.filter(c => c.status !== 'ok')
 
   async function handleCheck() {
-    await api.runCheck()
-    alert('检测任务已启动，请稍后刷新查看结果')
+    try {
+      await api.runCheck()
+      toast({
+        kind: 'info',
+        title: '检测已启动',
+        message: '后台正在扫描证书，请稍后刷新页面查看结果',
+      })
+    } catch (e) {
+      toast({ kind: 'err', title: '启动失败', message: (e as Error).message })
+    }
   }
 
   if (loading) return <p className="loading">加载中...</p>
