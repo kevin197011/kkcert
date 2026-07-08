@@ -7,6 +7,21 @@ import {
 } from '../icons'
 import { Logo } from '../Logo'
 
+const NAV: {
+  to: string
+  label: string
+  icon: React.ReactNode
+  end?: boolean
+  show?: (role: string) => boolean
+}[] = [
+  { to: '/', label: '概览', icon: <IconDashboard />, end: true },
+  { to: '/domains', label: '域名与证书', icon: <IconCertificate /> },
+  { to: '/logs', label: '操作日志', icon: <IconLogs /> },
+  { to: '/tokens', label: 'API Token', icon: <IconKey />, show: canManageUsers },
+  { to: '/users', label: '用户管理', icon: <IconUsers />, show: canManageUsers },
+  { to: '/settings', label: '系统设置', icon: <IconSettings />, show: canWriteSettings },
+]
+
 function NavItem({ to, end, icon, children }: { to: string; end?: boolean; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <NavLink to={to} end={end} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
@@ -16,20 +31,10 @@ function NavItem({ to, end, icon, children }: { to: string; end?: boolean; icon:
   )
 }
 
-function NavSection({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="nav-section">
-      <span className="nav-section-label">{label}</span>
-      {children}
-    </div>
-  )
-}
-
 export function Sidebar() {
   const { user } = useAuth()
-  const showSettings = canWriteSettings(user!.role)
-  const showAdmin = canManageUsers(user!.role)
-  const showSystem = showSettings || showAdmin
+  const role = user!.role
+  const items = NAV.filter(n => !n.show || n.show(role))
 
   return (
     <aside className="sidebar">
@@ -47,30 +52,15 @@ export function Sidebar() {
       </div>
 
       <nav className="sidebar-nav" aria-label="证书运维">
-        <NavSection label="证书运维">
-          <NavItem to="/" end icon={<IconDashboard />}>概览</NavItem>
-          <NavItem to="/domains" icon={<IconCertificate />}>域名与证书</NavItem>
-        </NavSection>
-        <NavSection label="观测">
-          <NavItem to="/logs" icon={<IconLogs />}>操作日志</NavItem>
-        </NavSection>
+        <div className="nav-section">
+          <span className="nav-section-label">证书运维</span>
+          {items.map(n => (
+            <NavItem key={n.to} to={n.to} end={n.end} icon={n.icon}>
+              {n.label}
+            </NavItem>
+          ))}
+        </div>
       </nav>
-
-      {showSystem && (
-        <nav className="sidebar-nav sidebar-nav-bottom" aria-label="系统管理">
-          <NavSection label="系统">
-            {showSettings && (
-              <NavItem to="/settings" icon={<IconSettings />}>系统设置</NavItem>
-            )}
-            {showAdmin && (
-              <>
-                <NavItem to="/users" icon={<IconUsers />}>用户管理</NavItem>
-                <NavItem to="/tokens" icon={<IconKey />}>API Token</NavItem>
-              </>
-            )}
-          </NavSection>
-        </nav>
-      )}
     </aside>
   )
 }

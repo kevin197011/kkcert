@@ -438,9 +438,9 @@ curl http://localhost:8080/api/certificates \
 - 字体：Plus Jakarta Sans（Google Fonts）
 - 使用 CSS 变量统一管理颜色，禁止硬编码色值
 - 主色：靛蓝渐变（`--accent` → `--accent-2`），点缀色青绿（`--accent-3`）
-- 布局：深色渐变侧栏 + 浅色/深色主内容区，径向光晕背景；**桌面端侧栏固定视口高度**（系统区分栏底），主内容区独立滚动，避免长列表页把侧栏底栏顶出屏幕
+- 布局：深色渐变侧栏 + 浅色/深色主内容区，径向光晕背景；**桌面端侧栏固定视口高度**，主内容区独立滚动
 - **主内容区版心**：最大宽度 1400px、水平居中；页面内边距 56px（桌面）/ 20px（移动）；区块间距 32px；标题 32px
-- 侧栏：三区布局 + 分组导航 + SVG 图标（见下表）
+- 侧栏：单组连续导航（参考 [KKDNS](https://github.com/kevin197011/kkdns)），日常与系统入口同一列表，不底部拆分
 - 顶栏：主题切换按钮 + 用户头像下拉（用户名、角色、退出）
 - 页脚：所有页面（含登录页）底部统一展示「系统运维驱动」（`PageFooter` 组件）
 - 统计卡片：图标 + 数值 + 状态色光晕
@@ -453,19 +453,20 @@ curl http://localhost:8080/api/certificates \
 
 #### 侧栏信息架构
 
-按**使用频率**与**职能**分区；系统管理类入口固定在侧栏底部，与日常运维分离。
+侧栏为**单组连续菜单**（对齐 KKDNS `Shell`）：同一 `nav-section` 下列出全部入口，不按职能拆成上下两块。
 
-| 分区 | 位置 | 菜单项 | 可见角色 |
-|------|------|--------|----------|
-| 证书运维 | 上部主区 | 概览、域名与证书 | 全部已登录用户 |
-| 观测 | 上部主区 | 操作日志 | 全部已登录用户 |
-| 系统 | **底部固定** | 系统设置、用户管理、API Token | 仅 admin |
+| 顺序 | 菜单项 | 可见角色 |
+|------|--------|----------|
+| 1 | 概览 | 全部已登录用户 |
+| 2 | 域名与证书 | 全部已登录用户 |
+| 3 | 操作日志 | 全部已登录用户 |
+| 4 | API Token | 仅 `admin` |
+| 5 | 用户管理 | 仅 `admin` |
+| 6 | 系统设置 | 仅 `admin` |
 
-- **概览**为健康摘要，置于证书运维分组首位
-- **域名与证书**为核心操作页，图标使用证书样式（`IconCertificate`）
-- `operator` / `viewer` 不显示「系统」分区（无可见项时整块隐藏）
+- `operator` / `viewer` 仅见前 3 项；`admin` 见全部 6 项
 - 组件：`frontend/src/components/Sidebar.tsx`
-- 移动端：每组保留小标题，菜单项为自适应网格，系统区分隔线仍贴底
+- 移动端：菜单项为自适应网格，保留分组小标题「证书运维」
 
 #### 页面布局原则
 
@@ -669,17 +670,11 @@ Authorization: Bearer <session-token | kkcert_...>
 | `Dockerfile` | 多阶段镜像构建 |
 | `Rakefile` | 常用命令封装 |
 
-**常用命令（`rake`）：**
+**常用命令：**
 
 | 命令 | 等价 | 说明 |
 |------|------|------|
-| `rake run` / `rake up` | `docker compose up -d --build` | 构建并后台启动 |
-| `rake build` | `docker compose build` | 仅构建镜像 |
-| `rake down` / `rake stop` | `docker compose down` | 停止并移除容器 |
-| `rake logs` | `docker compose logs -f` | 跟踪容器日志 |
-| `rake restart` | `docker compose up -d --build --force-recreate` | 强制重建容器 |
-| `rake ps` | `docker compose ps` | 查看容器状态 |
-| `rake dev` | `docker compose up --build` | 前台运行（调试用） |
+| `rake run` | `docker compose up -d --build --force-recreate` | 构建并重启容器 |
 
 **调测流程：**
 
@@ -692,10 +687,10 @@ curl http://localhost:8080/api/health
 # 期望: {"status":"ok"}
 
 # 3. 查看日志（续签/ACME 错误排查）
-rake logs
+docker compose logs -f
 
 # 4. 停止
-rake down
+docker compose down
 ```
 
 **访问地址：**
@@ -714,10 +709,10 @@ rake down
 
 ```bash
 # 终端 1：Docker 启动后端
-rake up
+rake run
 
 # 终端 2：Vite 前端（代理 /api → :8080）
-rake dev-frontend
+cd frontend && npm run dev
 ```
 
 前端开发服务器默认将 `/api` 代理到 `http://localhost:8080`。
@@ -793,7 +788,7 @@ docker run -d --name kkcert \
 - [ ] 操作日志可见 `renew / started` 及终态记录
 - [ ] `rake run` 后 `curl /api/health` 返回 ok，Web 可登录
 - [ ] 推送到 `main` 后 GitHub Actions 成功构建并推送镜像至 GHCR
-- [ ] `rake logs` 可查看续签与 ACME 日志
+- [ ] `docker compose logs -f` 可查看续签与 ACME 日志
 - [ ] 未登录访问受保护 API 返回 401
 - [ ] 本地登录与 OIDC 登录均可获取会话
 - [ ] `viewer` 无法修改域名或设置

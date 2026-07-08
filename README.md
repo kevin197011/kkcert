@@ -24,9 +24,7 @@
 ### 构建与运行（Docker Compose）
 
 ```bash
-rake run          # 构建镜像并后台启动
-rake logs         # 查看日志
-rake down         # 停止
+rake run          # 构建镜像并重启容器
 ```
 
 访问 http://localhost:8080 ，默认账号 `admin` / `changeme`（可通过 `KKCERT_BOOTSTRAP_PASSWORD` 修改）
@@ -35,10 +33,10 @@ rake down         # 停止
 
 ```bash
 # 终端 1：Docker 启动后端
-rake up
+rake run
 
 # 终端 2：前端热更新（代理 /api 到 8080）
-rake dev-frontend
+cd frontend && npm run dev
 ```
 
 ## 配置
@@ -74,7 +72,7 @@ certs/
 与 `rake run` 相同：
 
 ```bash
-docker compose up -d --build
+docker compose up -d --build --force-recreate
 ```
 
 ## 文档
